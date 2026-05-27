@@ -1,0 +1,49 @@
+version: '3.8'
+
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║   LAB-INSECURE — Laboratorio de vulnerabilidades deliberadas        ║
+# ║   USO EXCLUSIVO ACADÉMICO Y EDUCATIVO                               ║
+# ║   NO DESPLEGAR EN PRODUCCIÓN                                        ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+services:
+
+  # ── Base de datos ─────────────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    container_name: lab_db
+    environment:
+      POSTGRES_USER: admin               # <- VULNERABILIDAD: credenciales débiles
+      POSTGRES_PASSWORD: admin123        # <- VULNERABILIDAD: contraseña hardcodeada
+      POSTGRES_DB: labdb
+    ports:
+      - "5432:5432"                      # <- VULNERABILIDAD: BD expuesta al exterior
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d labdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Backend Flask (app vulnerable) ───────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: lab_backend
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: admin
+      DB_PASS: admin123                  # <- VULNERABILIDAD: secreto en compose
+      DB_NAME: labdb
+      JWT_SECRET: mysecretkey            # <- VULNERABILIDAD: secreto débil
+      DEBUG: "true"                      # <- VULNERABILIDAD: debug en producción
+      APP_ENV: development
+    ports:
+      - "5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
