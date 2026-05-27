@@ -1,5 +1,3 @@
-version: '3.8'
-
 # ╔══════════════════════════════════════════════════════════════════════╗
 # ║   LAB-INSECURE — Laboratorio de vulnerabilidades deliberadas        ║
 # ║   USO EXCLUSIVO ACADÉMICO Y EDUCATIVO                               ║
@@ -17,7 +15,7 @@ services:
       POSTGRES_PASSWORD: admin123        # <- VULNERABILIDAD: contraseña hardcodeada
       POSTGRES_DB: labdb
     ports:
-      - "5432:5432"                      # <- VULNERABILIDAD: BD expuesta al exterior
+      - "5433:5432"                      # <- VULNERABILIDAD: BD expuesta al exterior
     volumes:
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
