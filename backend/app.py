@@ -1,175 +1,207 @@
 """
-=======================================================
-LAB CIBERSEGURIDAD - BACKEND DELIBERADAMENTE VULNERABLE
-=======================================================
-Este código contiene vulnerabilidades INTENCIONALES para
-fines educativos. NUNCA usar en producción.
-
-Vulnerabilidades presentes:
-  1. SQL Injection en /login
-  2. Endpoint de debug expuesto en /debug
-  3. IDOR (Insecure Direct Object Reference) en /user/<id>
-  4. CORS abierto para todos los origenes
-  5. Contraseñas en texto plano
-  6. JWT secret debil
-  7. Stack trace expuesto en errores
-  8. Proceso corriendo como root
+lab-insecure — backend Flask con vulnerabilidades intencionales
+USO EXCLUSIVO ACADÉMICO
 """
+import os, logging
+from datetime import datetime, timedelta
+from functools import wraps
 
-from flask import Flask, request, jsonify
-from flask_cors import CORS
 import psycopg2
-import os
 import jwt
-import datetime
-import time
+from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static')
+CORS(app, resources={r"/*": {"origins": "*"}})
 
-# MAL: CORS abierto a cualquier origen
-CORS(app, origins="*")
+JWT_SECRET = os.environ.get("JWT_SECRET", "mysecretkey")
+DB_HOST    = os.environ.get("DB_HOST", "db")
+DB_PORT    = int(os.environ.get("DB_PORT", 5432))
+DB_USER    = os.environ.get("DB_USER", "admin")
+DB_PASS    = os.environ.get("DB_PASS", "admin123")
+DB_NAME    = os.environ.get("DB_NAME", "labdb")
+DEBUG_MODE = os.environ.get("DEBUG", "false").lower() == "true"
 
-SECRET_KEY = os.environ.get('SECRET_KEY', 'defaultsecret')
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger(__name__)
 
 
 def get_db():
-    retries = 5
-    while retries > 0:
+    return psycopg2.connect(
+        host=DB_HOST, port=DB_PORT,
+        user=DB_USER, password=DB_PASS, dbname=DB_NAME
+    )
+
+def require_token(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.headers.get("Authorization", "")
+        if not auth.startswith("Bearer "):
+            return jsonify({"error": "Token requerido"}), 401
         try:
-            return psycopg2.connect(
-                host=os.environ['DB_HOST'],
-                user=os.environ['DB_USER'],
-                password=os.environ['DB_PASS'],
-                database='labdb'
-            )
-        except Exception:
-            retries -= 1
-            time.sleep(2)
-    raise Exception("No se pudo conectar a la base de datos")
+            request.user = jwt.decode(auth[7:], JWT_SECRET, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token expirado"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Token inválido"}), 401
+        return f(*args, **kwargs)
+    return decorated
 
 
-# -------------------------------------------------------
-# VULNERABILIDAD 1: SQL Injection
-# La query se construye concatenando strings directamente
-# -------------------------------------------------------
-@app.route('/login', methods=['POST'])
-def login():
-    data = request.json or {}
-    username = data.get('username', '')
-    password = data.get('password', '')
-
-    try:
-        conn = get_db()
-        cur = conn.cursor()
-
-        # MAL: concatenacion directa = SQL Injection
-        query = f"SELECT id, username, role FROM users WHERE username='{username}' AND password='{password}'"
-        
-        # En modo debug muestra la query completa al cliente
-        if os.environ.get('DEBUG') == 'true':
-            print(f"[DEBUG] Query ejecutada: {query}")
-
-        cur.execute(query)
-        user = cur.fetchone()
-        conn.close()
-
-        if user:
-            token = jwt.encode(
-                {
-                    'user_id': user[0],
-                    'username': user[1],
-                    'role': user[2],
-                    'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24)
-                },
-                SECRET_KEY,
-                algorithm='HS256'
-            )
-            return jsonify({
-                'status': 'ok',
-                'token': token,
-                'username': user[1],
-                'role': user[2]
-            })
-        
-        return jsonify({'status': 'error', 'message': 'Credenciales incorrectas'}), 401
-
-    except Exception as e:
-        # MAL: expone el error interno completo (stack trace)
-        return jsonify({'status': 'error', 'detail': str(e)}), 500
+# ── UI ────────────────────────────────────────────────────────────────────
+@app.route('/')
+def index():
+    return send_from_directory('static', 'index.html')
 
 
-# -------------------------------------------------------
-# VULNERABILIDAD 2: Endpoint /debug expuesto
-# Devuelve TODAS las variables de entorno del proceso
-# -------------------------------------------------------
-@app.route('/debug')
-def debug():
-    # MAL: esto no deberia existir en ninguna app real
-    return jsonify({
-        'env': dict(os.environ),
-        'debug_mode': os.environ.get('DEBUG'),
-        'version': os.environ.get('APP_VERSION', 'unknown')
-    })
-
-
-# -------------------------------------------------------
-# VULNERABILIDAD 3: IDOR
-# Cualquier usuario puede acceder a datos de cualquier otro
-# No hay validacion de que el token corresponda al user_id
-# -------------------------------------------------------
-@app.route('/user/<int:user_id>', methods=['GET'])
-def get_user(user_id):
-    # MAL: no se verifica que el token pertenezca a este user_id
-    try:
-        conn = get_db()
-        cur = conn.cursor()
-        # MAL: concatenacion directa tambien aqui
-        cur.execute(f"SELECT id, username, email, role FROM users WHERE id={user_id}")
-        user = cur.fetchone()
-        conn.close()
-
-        if user:
-            return jsonify({
-                'id': user[0],
-                'username': user[1],
-                'email': user[2],
-                'role': user[3]
-            })
-        return jsonify({'error': 'Usuario no encontrado'}), 404
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-# -------------------------------------------------------
-# Endpoint de salud (este es correcto, para referencia)
-# -------------------------------------------------------
+# ── Health ────────────────────────────────────────────────────────────────
 @app.route('/health')
 def health():
-    return jsonify({'status': 'running', 'app': 'lab-insecure'})
+    return jsonify({"status": "ok", "app": "lab-insecure"})
 
 
-# -------------------------------------------------------
-# Endpoint para ver todos los usuarios (sin autenticacion)
-# -------------------------------------------------------
-@app.route('/users')
-def list_users():
-    # MAL: sin autenticacion, sin paginacion, sin filtrado
+# ════════════════════════════════════════════════════════════════════════
+# [V1] SQL INJECTION
+# ════════════════════════════════════════════════════════════════════════
+@app.route('/login', methods=['POST'])
+def login():
+    data     = request.get_json(force=True, silent=True) or {}
+    username = data.get("username", "")
+    password = data.get("password", "")
+    if not username or not password:
+        return jsonify({"error": "username y password requeridos"}), 400
     try:
         conn = get_db()
-        cur = conn.cursor()
-        cur.execute("SELECT id, username, email, role FROM users")
-        users = cur.fetchall()
-        conn.close()
-        return jsonify([
-            {'id': u[0], 'username': u[1], 'email': u[2], 'role': u[3]}
-            for u in users
-        ])
+        cur  = conn.cursor()
+        # ← VULNERABLE: concatenación directa → SQL Injection
+        query = (f"SELECT id, username, email, role "
+                 f"FROM users "
+                 f"WHERE username='{username}' AND password='{password}'")
+        log.info(f"[LOGIN] {query}")
+        cur.execute(query)
+        user = cur.fetchone()
+        cur.close(); conn.close()
+        if user:
+            uid, uname, email, role = user
+            token = jwt.encode(
+                {"user_id": uid, "username": uname, "email": email,
+                 "role": role, "exp": datetime.utcnow() + timedelta(days=1)},
+                JWT_SECRET, algorithm="HS256"
+            )
+            return jsonify({"status": "ok", "token": token,
+                            "user": {"id": uid, "username": uname, "role": role}})
+        return jsonify({"status": "error", "message": "Credenciales incorrectas"}), 401
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        if DEBUG_MODE:
+            import traceback
+            return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
+        return jsonify({"error": "Error interno"}), 500
+
+
+# ════════════════════════════════════════════════════════════════════════
+# [V2] SECRETOS EXPUESTOS
+# ════════════════════════════════════════════════════════════════════════
+@app.route('/debug')
+def debug_info():
+    # ← VULNERABLE: expone TODAS las variables de entorno
+    return jsonify(dict(os.environ))
+
+
+# ════════════════════════════════════════════════════════════════════════
+# [V2b] FORGE TOKEN — endpoint educativo para demostrar impacto del secreto robado
+# ════════════════════════════════════════════════════════════════════════
+@app.route('/api/forge', methods=['POST'])
+def forge_token():
+    """
+    Recibe el JWT_SECRET (obtenido del /debug) y forja un token de admin.
+    Demuestra el impacto de un secreto expuesto.
+    """
+    data   = request.get_json(force=True, silent=True) or {}
+    secret = data.get("secret", "")
+    if secret != JWT_SECRET:
+        return jsonify({"error": "Secreto incorrecto"}), 400
+    token = jwt.encode(
+        {"user_id": 1, "username": "admin", "role": "admin",
+         "exp": datetime.utcnow() + timedelta(days=30),
+         "note": "Token forjado con secreto robado de /debug"},
+        secret, algorithm="HS256"
+    )
+    return jsonify({"token": token,
+                    "message": "Token de admin forjado sin conocer la contraseña."})
+
+
+# ════════════════════════════════════════════════════════════════════════
+# [V3] IDOR
+# ════════════════════════════════════════════════════════════════════════
+@app.route('/user/<int:user_id>')
+@require_token
+def get_user(user_id):
+    # ← VULNERABLE: no valida que el token pertenezca a user_id
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("SELECT id, username, email, role FROM users WHERE id = %s", (user_id,))
+        row = cur.fetchone(); cur.close(); conn.close()
+        if not row:
+            return jsonify({"error": "Usuario no encontrado"}), 404
+        return jsonify({"id": row[0], "username": row[1], "email": row[2], "role": row[3]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/users')
+@require_token
+def list_users():
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("SELECT id, username, email, role FROM users ORDER BY id")
+    rows = cur.fetchall(); cur.close(); conn.close()
+    return jsonify([{"id":r[0],"username":r[1],"email":r[2],"role":r[3]} for r in rows])
+
+
+# ════════════════════════════════════════════════════════════════════════
+# VERSIONES CORREGIDAS
+# ════════════════════════════════════════════════════════════════════════
+@app.route('/secure/login', methods=['POST'])
+def secure_login():
+    data     = request.get_json(force=True, silent=True) or {}
+    username = data.get("username", "")
+    password = data.get("password", "")
+    if not username or not password:
+        return jsonify({"error": "username y password requeridos"}), 400
+    try:
+        conn = get_db(); cur = conn.cursor()
+        # ← CORRECTO: prepared statement
+        cur.execute("SELECT id, username, email, role, password FROM users WHERE username = %s",
+                    (username,))
+        user = cur.fetchone(); cur.close(); conn.close()
+        if not user or user[4] != password:
+            return jsonify({"error": "Credenciales incorrectas"}), 401
+        uid, uname, email, role, _ = user
+        token = jwt.encode(
+            {"user_id": uid, "username": uname, "role": role,
+             "exp": datetime.utcnow() + timedelta(hours=1)},
+            JWT_SECRET, algorithm="HS256"
+        )
+        return jsonify({"status": "ok", "token": token})
+    except Exception as e:
+        log.error(f"secure_login error: {e}")
+        return jsonify({"error": "Error interno"}), 500
+
+
+@app.route('/secure/user/<int:user_id>')
+@require_token
+def secure_get_user(user_id):
+    uid  = request.user.get("user_id")
+    role = request.user.get("role", "user")
+    # ← CORRECTO: validar autorización
+    if uid != user_id and role != "admin":
+        return jsonify({"error": "Acceso denegado"}), 403
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("SELECT id, username, email, role FROM users WHERE id = %s", (user_id,))
+    row = cur.fetchone(); cur.close(); conn.close()
+    if not row:
+        return jsonify({"error": "No encontrado"}), 404
+    return jsonify({"id": row[0], "username": row[1], "email": row[2], "role": row[3]})
 
 
 if __name__ == '__main__':
-    # MAL: debug=True en produccion expone el debugger de Werkzeug
-    # MAL: host='0.0.0.0' expone en todas las interfaces
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=DEBUG_MODE)

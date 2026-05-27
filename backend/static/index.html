@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LabCorp — Sistema de Gestión Interna</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #0D1117;
+    --card:    #161B22;
+    --card2:   #1C2128;
+    --border:  #30363D;
+    --accent:  #4F8EF7;
+    --red:     #E5534B;
+    --green:   #3FB950;
+    --text:    #C9D1D9;
+    --muted:   #6E7681;
+    --white:   #FFFFFF;
+    --code-bg: #0A0E13;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, 'Segoe UI', Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ─────────────────────────────────────────────────────── */
+  header {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 52px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .header-dot {
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+  }
+  .header-title {
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--white);
+    letter-spacing: 0.5px;
+  }
+  .header-sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: 0.5rem;
+  }
+  .header-badge {
+    background: rgba(229, 83, 75, 0.15);
+    border: 1px solid rgba(229, 83, 75, 0.4);
+    color: var(--red);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 3px 10px;
+    border-radius: 3px;
+  }
+
+  /* ── TABS ────────────────────────────────────────────────────────── */
+  .tabs {
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    display: flex;
+    gap: 0;
+    background: var(--card);
+  }
+  .tab {
+    padding: 12px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color .15s, border-color .15s;
+    user-select: none;
+    white-space: nowrap;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active {
+    color: var(--white);
+    border-bottom-color: var(--accent);
+  }
+  .tab .tab-num {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    opacity: 0.6;
+    margin-right: 6px;
+  }
+
+  /* ── LAYOUT ──────────────────────────────────────────────────────── */
+  .main {
+    display: grid;
+    grid-template-columns: 420px 1fr;
+    gap: 0;
+    height: calc(100vh - 101px);
+  }
+  .panel-left {
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+  .panel-right {
+    overflow-y: auto;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  /* ── PAGE (tab panel) ────────────────────────────────────────────── */
+  .page { display: none; width: 100%; height: 100%; }
+  .page.active { display: contents; }
+
+  /* ── CARDS ───────────────────────────────────────────────────────── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.1rem;
+  }
+  .card-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    margin-bottom: 0.85rem;
+    text-transform: uppercase;
+  }
+  .card-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 1rem;
+  }
+
+  /* ── FORM ────────────────────────────────────────────────────────── */
+  .form-group { margin-bottom: 0.85rem; }
+  label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 5px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  input[type="text"], input[type="password"], input[type="number"] {
+    width: 100%;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 9px 12px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    outline: none;
+    transition: border-color .15s;
+  }
+  input:focus { border-color: var(--accent); }
+  input.injected { border-color: var(--red); color: var(--red); }
+
+  /* ── BUTTONS ─────────────────────────────────────────────────────── */
+  .btn-group { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.25rem; }
+  button {
+    padding: 8px 16px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid;
+    transition: opacity .15s, transform .1s;
+    letter-spacing: 0.3px;
+  }
+  button:active { transform: scale(0.98); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-normal   { background: var(--card2); border-color: var(--border); color: var(--text); }
+  .btn-attack   { background: rgba(229,83,75,.12); border-color: var(--red); color: var(--red); }
+  .btn-fix      { background: rgba(63,185,80,.12); border-color: var(--green); color: var(--green); }
+  .btn-primary  { background: rgba(79,142,247,.12); border-color: var(--accent); color: var(--accent); }
+  .btn-sm { padding: 5px 10px; font-size: 11px; }
+
+  /* ── QUERY PREVIEW ───────────────────────────────────────────────── */
+  .query-preview {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 0.75rem 1rem;
+    font-family: 'Consolas', monospace;
+    font-size: 11.5px;
+    color: var(--muted);
+    line-height: 1.7;
+    word-break: break-all;
+  }
+  .query-preview .q-keyword { color: var(--accent); }
+  .query-preview .q-string  { color: #A8D8A8; }
+  .query-preview .q-inject  { color: var(--red); font-weight: bold; }
+  .query-preview .q-comment { color: var(--muted); text-decoration: line-through; opacity: 0.5; }
+
+  /* ── RESPONSE PANEL ──────────────────────────────────────────────── */
+  .response-area {
+    flex: 1;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 200px;
+  }
+  .response-bar {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .response-bar-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot-red   { background: #E5534B; }
+  .dot-yellow{ background: #D29922; }
+  .dot-green { background: #3FB950; }
+  .response-url {
+    font-family: 'Consolas', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .status-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
+  }
+  .status-ok  { background: rgba(63,185,80,.15); color: var(--green); }
+  .status-err { background: rgba(229,83,75,.15); color: var(--red); }
+  .status-warn{ background: rgba(210,153,34,.15); color: #D29922; }
+  .response-body {
+    padding: 1rem;
+    flex: 1;
+    font-family: 'Consolas', monospace;
+    font-size: 12px;
+    line-height: 1.8;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .response-placeholder {
+    color: var(--muted);
+    font-style: italic;
+    padding: 2rem;
+    text-align: center;
+    font-family: inherit;
+  }
+
+  /* ── JSON coloring ───────────────────────────────────────────────── */
+  .j-key      { color: #79C0FF; }
+  .j-string   { color: #A8D8A8; }
+  .j-number   { color: #FF9F43; }
+  .j-bool     { color: var(--accent); }
+  .j-null     { color: var(--muted); }
+  .j-danger   { color: var(--red); font-weight: bold; }
+
+  /* ── ALERTS / CALLOUTS ───────────────────────────────────────────── */
+  .callout {
+    border-radius: 5px;
+    padding: 0.75rem 1rem;
+    font-size: 12.5px;
+    line-height: 1.6;
+    border-left: 3px solid;
+  }
+  .callout-red   { background: rgba(229,83,75,.08); border-color: var(--red); color: var(--text); }
+  .callout-green { background: rgba(63,185,80,.08); border-color: var(--green); color: var(--text); }
+  .callout-blue  { background: rgba(79,142,247,.08); border-color: var(--accent); color: var(--text); }
+  .callout strong { color: var(--white); }
+
+  /* ── TOKEN BOX ───────────────────────────────────────────────────── */
+  .token-box {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 8px 12px;
+    font-family: 'Consolas', monospace;
+    font-size: 10.5px;
+    color: var(--green);
+    word-break: break-all;
+    line-height: 1.5;
+  }
+  .token-box.empty { color: var(--muted); font-style: italic; }
+
+  /* ── SCROLLBAR ───────────────────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* ── USER GRID (IDOR) ────────────────────────────────────────────── */
+  .user-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+  .user-card {
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 0.75rem;
+    font-size: 12px;
+  }
+  .user-card .u-name { font-weight: 600; color: var(--white); margin-bottom: 3px; }
+  .user-card .u-role-admin { color: var(--red); font-size: 10px; font-weight: 700; letter-spacing: 1px; }
+  .user-card .u-role-user  { color: var(--muted); font-size: 10px; }
+  .user-card .u-email { color: var(--muted); font-size: 11px; }
+
+  /* ── SECTION DIVIDER ─────────────────────────────────────────────── */
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 0.25rem 0;
+  }
+
+  /* ── SPINNER ─────────────────────────────────────────────────────── */
+  .spinner {
+    display: inline-block;
+    width: 12px; height: 12px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .6s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-brand">
+    <div class="header-dot"></div>
+    <span class="header-title">LabCorp</span>
+    <span class="header-sub">Sistema de Gestión Interna</span>
+  </div>
+  <span class="header-badge">ENTORNO VULNERABLE — SOLO USO ACADÉMICO</span>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('sqli')">
+    <span class="tab-num">01</span>SQL Injection
+  </div>
+  <div class="tab" onclick="switchTab('debug')">
+    <span class="tab-num">02</span>Secretos expuestos
+  </div>
+  <div class="tab" onclick="switchTab('idor')">
+    <span class="tab-num">03</span>IDOR
+  </div>
+  <div class="tab" onclick="switchTab('fixes')">
+    <span class="tab-num">FIX</span>Versiones corregidas
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- TAB 1: SQL INJECTION                                        -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="main">
+<div id="page-sqli" class="page active">
+
+  <div class="panel-left">
+    <div class="card">
+      <div class="card-title">SQL Injection — Bypass de autenticación</div>
+      <p class="card-desc">
+        La query de login concatena directamente los inputs del usuario. Esto permite
+        modificar la lógica SQL e ingresar sin contraseña válida.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Formulario de login</div>
+      <div class="form-group">
+        <label>Usuario</label>
+        <input type="text" id="sqli-user" value="admin" oninput="updateQuery()">
+      </div>
+      <div class="form-group">
+        <label>Contraseña</label>
+        <input type="password" id="sqli-pass" value="wrong_password" oninput="updateQuery()">
+      </div>
+      <div class="btn-group">
+        <button class="btn-normal" onclick="doLogin(false)">Login normal</button>
+        <button class="btn-attack" onclick="doSQLi()">Inyectar SQL</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Query que se ejecuta en la base de datos</div>
+      <div class="query-preview" id="query-preview">
+        <span class="q-keyword">SELECT</span> * <span class="q-keyword">FROM</span> users
+        <span class="q-keyword">WHERE</span> username=<span class="q-string" id="q-user">'admin'</span>
+        <span class="q-keyword">AND</span> password=<span class="q-string" id="q-pass">'wrong_password'</span>
+      </div>
+    </div>
+
+    <div class="callout callout-red" id="sqli-hint" style="display:none">
+      <strong>Payload inyectado:</strong> <code>admin'--</code><br>
+      El <code>--</code> es un comentario en SQL. Todo lo que sigue queda ignorado,
+      incluyendo la condición de contraseña. El sistema autentica sin verificarla.
+    </div>
+  </div>
+
+  <div class="panel-right">
+    <div class="response-area" id="sqli-response">
+      <div class="response-bar">
+        <div class="response-bar-left">
+          <div class="dot dot-red"></div>
+          <div class="dot dot-yellow"></div>
+          <div class="dot dot-green"></div>
+          <span class="response-url">POST /login</span>
+        </div>
+        <span class="status-badge" id="sqli-status"></span>
+      </div>
+      <div class="response-body" id="sqli-body">
+        <span class="response-placeholder">Ejecutá un intento de login para ver la respuesta.</span>
+      </div>
+    </div>
+
+    <div class="card" id="sqli-token-card" style="display:none">
+      <div class="card-title">Token obtenido</div>
+      <div class="token-box" id="sqli-token-display"></div>
+      <p style="font-size:11px;color:var(--muted);margin-top:0.5rem">
+        Copiá este token y usalo en el tab IDOR para acceder a datos de otros usuarios.
+      </p>
+      <button class="btn-sm btn-primary" style="margin-top:0.5rem" onclick="copyToken('sqli')">
+        Copiar token
+      </button>
+    </div>
+  </div>
+
+</div><!-- /page-sqli -->
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- TAB 2: DEBUG / SECRETOS                                     -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div id="page-debug" class="page">
+
+  <div class="panel-left">
+    <div class="card">
+      <div class="card-title">Secretos expuestos — /debug</div>
+      <p class="card-desc">
+        El endpoint <code>/debug</code> retorna todas las variables de entorno del servidor,
+        incluyendo credenciales de base de datos y el secreto usado para firmar tokens JWT.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Paso 1 — Obtener los secretos</div>
+      <p class="card-desc" style="margin-bottom:0.75rem">
+        Un solo request expone todo.
+      </p>
+      <button class="btn-attack" onclick="doDebug()">GET /debug</button>
+    </div>
+
+    <div class="card" id="forge-card" style="display:none">
+      <div class="card-title">Paso 2 — Forjar token de admin</div>
+      <p class="card-desc">
+        Con el <code>JWT_SECRET</code> robado, el servidor puede crear un token
+        firmado para cualquier usuario, incluyendo admin.
+      </p>
+      <div class="form-group">
+        <label>JWT_SECRET (obtenido del /debug)</label>
+        <input type="text" id="forge-secret" readonly>
+      </div>
+      <button class="btn-attack" onclick="doForge()">Forjar token de admin</button>
+    </div>
+
+    <div class="card" id="forge-result-card" style="display:none">
+      <div class="card-title">Token de admin forjado</div>
+      <div class="token-box" id="forge-token-display"></div>
+      <p style="font-size:11px;color:var(--muted);margin-top:0.5rem">
+        Este token fue creado sin conocer la contraseña del admin.
+        Usalo en el tab IDOR para acceder como admin.
+      </p>
+      <button class="btn-sm btn-primary" style="margin-top:0.5rem" onclick="copyToken('forge')">
+        Copiar token
+      </button>
+    </div>
+  </div>
+
+  <div class="panel-right">
+    <div class="response-area">
+      <div class="response-bar">
+        <div class="response-bar-left">
+          <div class="dot dot-red"></div>
+          <div class="dot dot-yellow"></div>
+          <div class="dot dot-green"></div>
+          <span class="response-url">GET /debug</span>
+        </div>
+        <span class="status-badge" id="debug-status"></span>
+      </div>
+      <div class="response-body" id="debug-body">
+        <span class="response-placeholder">Ejecutá GET /debug para ver las variables de entorno expuestas.</span>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /page-debug -->
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- TAB 3: IDOR                                                 -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div id="page-idor" class="page">
+
+  <div class="panel-left">
+    <div class="card">
+      <div class="card-title">IDOR — Insecure Direct Object Reference</div>
+      <p class="card-desc">
+        El endpoint <code>/user/:id</code> no valida si el token pertenece al usuario
+        solicitado. Cualquier usuario autenticado puede ver los datos de cualquier otro.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Token de autenticación</div>
+      <div class="form-group">
+        <label>Token JWT (pegá el que obtuviste)</label>
+        <input type="text" id="idor-token" placeholder="Pegá el token de los tabs anteriores...">
+        <p style="font-size:11px;color:var(--muted);margin-top:4px">
+          Usá el token de carlos (login normal) para acceder a datos de admin.
+        </p>
+      </div>
+      <button class="btn-sm btn-primary" onclick="useStoredToken()">Usar último token obtenido</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Consultar usuario por ID</div>
+      <div class="form-group">
+        <label>User ID</label>
+        <input type="number" id="idor-uid" value="1" min="1" max="10">
+      </div>
+      <div class="btn-group">
+        <button class="btn-attack" onclick="doIDOR()">GET /user/:id</button>
+        <button class="btn-attack" onclick="doEnumerate()">Enumerar todos (1–5)</button>
+      </div>
+    </div>
+
+    <div class="callout callout-red" id="idor-note" style="display:none">
+      <strong>Acceso no autorizado.</strong> Estás viendo datos de un usuario distinto
+      al que pertenece el token. El backend no valida la identidad.
+    </div>
+  </div>
+
+  <div class="panel-right">
+    <div class="response-area" id="idor-response-area">
+      <div class="response-bar">
+        <div class="response-bar-left">
+          <div class="dot dot-red"></div>
+          <div class="dot dot-yellow"></div>
+          <div class="dot dot-green"></div>
+          <span class="response-url" id="idor-url">GET /user/:id</span>
+        </div>
+        <span class="status-badge" id="idor-status"></span>
+      </div>
+      <div class="response-body" id="idor-body">
+        <span class="response-placeholder">Consultá un ID para ver los datos del usuario.</span>
+      </div>
+    </div>
+
+    <div id="enum-results" style="display:none">
+      <div class="card" style="margin-top:0">
+        <div class="card-title">Enumeración — todos los usuarios del sistema</div>
+        <div class="user-grid" id="user-grid"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /page-idor -->
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- TAB 4: FIXES                                               -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div id="page-fixes" class="page">
+
+  <div class="panel-left">
+    <div class="card">
+      <div class="card-title">Versiones corregidas</div>
+      <p class="card-desc">
+        Estas rutas implementan los mismos casos de uso pero con las correcciones aplicadas.
+        Comparalas con las versiones vulnerables.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Fix 01 — Login con prepared statement</div>
+      <p class="card-desc" style="margin-bottom:0.75rem">
+        La misma inyección SQL que funcionó antes ahora debe fallar.
+      </p>
+      <div class="form-group">
+        <label>Usuario</label>
+        <input type="text" id="fix-user" value="admin'--">
+      </div>
+      <div class="form-group">
+        <label>Contraseña</label>
+        <input type="password" id="fix-pass" value="nada">
+      </div>
+      <button class="btn-fix" onclick="doFixLogin()">POST /secure/login</button>
+
+      <hr class="divider" style="margin:1rem 0">
+      <p class="card-desc" style="margin-bottom:0.75rem">Login con credenciales reales:</p>
+      <div class="form-group">
+        <label>Usuario</label>
+        <input type="text" id="fix-user-real" value="carlos">
+      </div>
+      <div class="form-group">
+        <label>Contraseña</label>
+        <input type="password" id="fix-pass-real" value="pass456">
+      </div>
+      <button class="btn-fix" onclick="doFixLoginReal()">Login real (seguro)</button>
+    </div>
+
+    <div class="card" id="fix-idor-card">
+      <div class="card-title">Fix 02 — IDOR con validación</div>
+      <div class="form-group">
+        <label>Token (pegá el de carlos)</label>
+        <input type="text" id="fix-idor-token" placeholder="Token de carlos...">
+        <button class="btn-sm btn-primary" style="margin-top:4px" onclick="useStoredTokenFix()">Usar último token</button>
+      </div>
+      <div class="form-group">
+        <label>User ID a consultar</label>
+        <input type="number" id="fix-idor-uid" value="1">
+      </div>
+      <button class="btn-fix" onclick="doFixIDOR()">GET /secure/user/:id</button>
+    </div>
+  </div>
+
+  <div class="panel-right">
+    <div class="response-area">
+      <div class="response-bar">
+        <div class="response-bar-left">
+          <div class="dot dot-red"></div>
+          <div class="dot dot-yellow"></div>
+          <div class="dot dot-green"></div>
+          <span class="response-url" id="fix-url">Endpoints seguros</span>
+        </div>
+        <span class="status-badge" id="fix-status"></span>
+      </div>
+      <div class="response-body" id="fix-body">
+        <span class="response-placeholder">Ejecutá un fix para comparar con la versión vulnerable.</span>
+      </div>
+    </div>
+
+    <div class="callout callout-green" id="fix-callout" style="display:none">
+      <strong id="fix-callout-title"></strong>
+      <div id="fix-callout-body" style="margin-top:4px;font-size:12px"></div>
+    </div>
+  </div>
+
+</div><!-- /page-fixes -->
+</div><!-- /main -->
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────
+const state = {
+  lastToken: null,
+  lastTokenSource: null,
+  debugData: null,
+};
+
+// ── Tab switching ─────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    const names = ['sqli','debug','idor','fixes'];
+    t.classList.toggle('active', names[i] === name);
+  });
+  document.querySelectorAll('.page').forEach(p => {
+    p.classList.toggle('active', p.id === 'page-' + name);
+  });
+}
+
+// ── Query preview (live update) ───────────────────────────────────────────
+function updateQuery() {
+  const u = document.getElementById('sqli-user').value || '';
+  const p = document.getElementById('sqli-pass').value || '';
+  const isInjected = u.includes("'") || u.includes('--') || u.includes(';');
+
+  const uEl = document.getElementById('q-user');
+  const pEl = document.getElementById('q-pass');
+
+  if (isInjected) {
+    const parts = u.split("'");
+    uEl.innerHTML = `'<span class="q-inject">${escHtml(u)}</span>`;
+    pEl.innerHTML = `<span class="q-comment">'${escHtml(p)}'</span>`;
+    document.getElementById('sqli-hint').style.display = 'block';
+  } else {
+    uEl.className = 'q-string';
+    uEl.textContent = `'${u}'`;
+    pEl.className = 'q-string';
+    pEl.textContent = `'${p}'`;
+    document.getElementById('sqli-hint').style.display = 'none';
+  }
+}
+
+// ── SQL Injection setup ───────────────────────────────────────────────────
+function doSQLi() {
+  const uInput = document.getElementById('sqli-user');
+  const pInput = document.getElementById('sqli-pass');
+  uInput.value = "admin'--";
+  pInput.value = "nada";
+  uInput.classList.add('injected');
+  pInput.classList.add('injected');
+  updateQuery();
+  doLogin(true);
+}
+
+// ── Login ─────────────────────────────────────────────────────────────────
+async function doLogin(isAttack) {
+  const u = document.getElementById('sqli-user').value;
+  const p = document.getElementById('sqli-pass').value;
+
+  setLoading('sqli-body', 'sqli-status', 'POST /login');
+
+  try {
+    const res = await fetch('/login', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({username: u, password: p})
+    });
+    const data = await res.json();
+    renderResponse('sqli-body', 'sqli-status', res.status, data);
+
+    if (data.token) {
+      state.lastToken = data.token;
+      state.lastTokenSource = 'sqli';
+      showTokenCard('sqli', data.token);
+    } else {
+      document.getElementById('sqli-token-card').style.display = 'none';
+    }
+  } catch(e) {
+    renderError('sqli-body', 'sqli-status', e);
+  }
+}
+
+// ── Debug / Secretos ──────────────────────────────────────────────────────
+async function doDebug() {
+  setLoading('debug-body', 'debug-status', 'GET /debug');
+  try {
+    const res = await fetch('/debug');
+    const data = await res.json();
+    state.debugData = data;
+
+    // Render with danger highlighting for sensitive keys
+    const sensitiveKeys = ['DB_PASS','JWT_SECRET','SECRET_KEY','DB_USER','DB_HOST'];
+    renderResponse('debug-body', 'debug-status', res.status, data, sensitiveKeys);
+
+    // Show forge panel
+    const secret = data.JWT_SECRET || data.SECRET_KEY || '';
+    if (secret) {
+      document.getElementById('forge-secret').value = secret;
+      document.getElementById('forge-card').style.display = 'block';
+    }
+  } catch(e) {
+    renderError('debug-body', 'debug-status', e);
+  }
+}
+
+// ── Forge token ───────────────────────────────────────────────────────────
+async function doForge() {
+  const secret = document.getElementById('forge-secret').value;
+  if (!secret) return;
+
+  try {
+    const res = await fetch('/api/forge', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({secret})
+    });
+    const data = await res.json();
+
+    if (data.token) {
+      state.lastToken = data.token;
+      state.lastTokenSource = 'forge';
+      document.getElementById('forge-token-display').textContent = data.token;
+      document.getElementById('forge-result-card').style.display = 'block';
+    }
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+// ── IDOR ──────────────────────────────────────────────────────────────────
+async function doIDOR() {
+  const token = document.getElementById('idor-token').value;
+  const uid   = document.getElementById('idor-uid').value;
+  if (!token) { alert('Necesitás un token. Obtené uno en el tab 01 o 02.'); return; }
+
+  document.getElementById('idor-url').textContent = `GET /user/${uid}`;
+  document.getElementById('enum-results').style.display = 'none';
+  setLoading('idor-body', 'idor-status', `GET /user/${uid}`);
+
+  try {
+    const res = await fetch(`/user/${uid}`, {
+      headers: {'Authorization': 'Bearer ' + token}
+    });
+    const data = await res.json();
+    renderResponse('idor-body', 'idor-status', res.status, data);
+
+    // Show IDOR note if accessing user other than token's user
+    document.getElementById('idor-note').style.display =
+      (res.status === 200) ? 'block' : 'none';
+  } catch(e) {
+    renderError('idor-body', 'idor-status', e);
+  }
+}
+
+async function doEnumerate() {
+  const token = document.getElementById('idor-token').value;
+  if (!token) { alert('Necesitás un token.'); return; }
+
+  document.getElementById('idor-body').innerHTML = '<span class="spinner"></span> Enumerando usuarios 1–5...';
+  document.getElementById('enum-results').style.display = 'none';
+
+  const users = [];
+  for (let i = 1; i <= 5; i++) {
+    try {
+      const res = await fetch(`/user/${i}`, {
+        headers: {'Authorization': 'Bearer ' + token}
+      });
+      if (res.ok) {
+        const data = await res.json();
+        users.push(data);
+      }
+    } catch(e) {}
+  }
+
+  document.getElementById('idor-body').innerHTML =
+    `<span style="color:var(--red)">Enumeración completa. ${users.length} usuarios encontrados.</span>`;
+  document.getElementById('idor-status').textContent = '200 OK';
+  document.getElementById('idor-status').className = 'status-badge status-ok';
+  document.getElementById('idor-note').style.display = 'block';
+
+  const grid = document.getElementById('user-grid');
+  grid.innerHTML = users.map(u => `
+    <div class="user-card">
+      <div class="u-name">${escHtml(u.username || '')}</div>
+      <div class="${u.role==='admin'?'u-role-admin':'u-role-user'}">${escHtml(u.role || '')}</div>
+      <div class="u-email">${escHtml(u.email || '')}</div>
+    </div>
+  `).join('');
+  document.getElementById('enum-results').style.display = 'block';
+}
+
+// ── Fix: Secure login ─────────────────────────────────────────────────────
+async function doFixLogin() {
+  const u = document.getElementById('fix-user').value;
+  const p = document.getElementById('fix-pass').value;
+  document.getElementById('fix-url').textContent = 'POST /secure/login';
+  setLoading('fix-body', 'fix-status', 'POST /secure/login');
+  try {
+    const res = await fetch('/secure/login', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({username:u, password:p})
+    });
+    const data = await res.json();
+    renderResponse('fix-body', 'fix-status', res.status, data);
+
+    if (res.status === 401) {
+      showFixCallout('SQLi bloqueada', 'El prepared statement impide la inyección. La query parametrizada escapa el input automáticamente.');
+    }
+  } catch(e) { renderError('fix-body','fix-status',e); }
+}
+
+async function doFixLoginReal() {
+  const u = document.getElementById('fix-user-real').value;
+  const p = document.getElementById('fix-pass-real').value;
+  document.getElementById('fix-url').textContent = 'POST /secure/login';
+  setLoading('fix-body','fix-status','POST /secure/login');
+  try {
+    const res = await fetch('/secure/login', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({username:u, password:p})
+    });
+    const data = await res.json();
+    renderResponse('fix-body','fix-status',res.status, data);
+    if (data.token) {
+      state.lastToken = data.token;
+      document.getElementById('fix-idor-token').value = data.token;
+      showFixCallout('Login exitoso con credenciales reales', 'Prepared statement + credenciales válidas = acceso correcto.');
+    }
+  } catch(e) { renderError('fix-body','fix-status',e); }
+}
+
+async function doFixIDOR() {
+  const token = document.getElementById('fix-idor-token').value;
+  const uid   = document.getElementById('fix-idor-uid').value;
+  if (!token) { alert('Necesitás un token.'); return; }
+  document.getElementById('fix-url').textContent = `GET /secure/user/${uid}`;
+  setLoading('fix-body','fix-status',`GET /secure/user/${uid}`);
+  try {
+    const res = await fetch(`/secure/user/${uid}`, {
+      headers: {'Authorization':'Bearer '+token}
+    });
+    const data = await res.json();
+    renderResponse('fix-body','fix-status',res.status,data);
+    if (res.status === 403) {
+      showFixCallout('IDOR bloqueado — 403 Forbidden', 'El backend valida que el token pertenece al usuario solicitado. Acceso denegado correctamente.');
+    } else if (res.status === 200) {
+      showFixCallout('Acceso propio permitido', 'El usuario solo puede ver sus propios datos.');
+    }
+  } catch(e) { renderError('fix-body','fix-status',e); }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function useStoredToken() {
+  if (state.lastToken) {
+    document.getElementById('idor-token').value = state.lastToken;
+  } else {
+    alert('Todavía no obtuviste ningún token. Hacé login primero en el tab 01.');
+  }
+}
+function useStoredTokenFix() {
+  if (state.lastToken) {
+    document.getElementById('fix-idor-token').value = state.lastToken;
+  }
+}
+function copyToken(src) {
+  const el = src === 'sqli'
+    ? document.getElementById('sqli-token-display')
+    : document.getElementById('forge-token-display');
+  navigator.clipboard.writeText(el.textContent).catch(() => {});
+}
+function showTokenCard(tab, token) {
+  const card = document.getElementById(`${tab}-token-card`);
+  const disp = document.getElementById(`${tab}-token-display`);
+  if (card && disp) {
+    card.style.display = 'block';
+    disp.textContent = token;
+  }
+}
+function showFixCallout(title, body) {
+  document.getElementById('fix-callout').style.display = 'block';
+  document.getElementById('fix-callout-title').textContent = title;
+  document.getElementById('fix-callout-body').textContent = body;
+}
+function setLoading(bodyId, statusId, url) {
+  document.getElementById(bodyId).innerHTML =
+    `<span class="spinner"></span><span style="color:var(--muted)">Esperando respuesta de ${escHtml(url)}...</span>`;
+  document.getElementById(statusId).textContent = '';
+  document.getElementById(statusId).className = 'status-badge';
+}
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function renderError(bodyId, statusId, e) {
+  document.getElementById(bodyId).innerHTML =
+    `<span style="color:var(--red)">Error de conexión: ${escHtml(e.message)}</span>`;
+  const sb = document.getElementById(statusId);
+  sb.textContent = 'ERROR'; sb.className = 'status-badge status-err';
+}
+
+const SENSITIVE = ['DB_PASS','JWT_SECRET','SECRET_KEY','DB_USER','POSTGRES_PASSWORD'];
+
+function renderResponse(bodyId, statusId, status, data, extraDanger) {
+  const danger = new Set([...SENSITIVE, ...(extraDanger||[])]);
+  const sb = document.getElementById(statusId);
+  sb.textContent = status + (status===200?' OK':status===401?' Unauthorized':status===403?' Forbidden':'');
+  sb.className = 'status-badge ' + (status<300?'status-ok':status<500?'status-warn':'status-err');
+
+  document.getElementById(bodyId).innerHTML = colorizeJSON(data, danger);
+}
+
+function colorizeJSON(obj, dangerKeys, indent) {
+  indent = indent || 0;
+  const pad = '  '.repeat(indent);
+  const pad1 = '  '.repeat(indent+1);
+
+  if (obj === null) return `<span class="j-null">null</span>`;
+  if (typeof obj === 'boolean') return `<span class="j-bool">${obj}</span>`;
+  if (typeof obj === 'number')  return `<span class="j-number">${obj}</span>`;
+  if (typeof obj === 'string') {
+    const s = escHtml(obj);
+    return `<span class="j-string">"${s}"</span>`;
+  }
+  if (Array.isArray(obj)) {
+    if (obj.length === 0) return '[]';
+    const items = obj.map(v => pad1 + colorizeJSON(v, dangerKeys, indent+1));
+    return `[\n${items.join(',\n')}\n${pad}]`;
+  }
+  if (typeof obj === 'object') {
+    const keys = Object.keys(obj);
+    if (keys.length === 0) return '{}';
+    const items = keys.map(k => {
+      const isDanger = dangerKeys && dangerKeys.has(k);
+      const keyHtml = isDanger
+        ? `<span class="j-danger">"${escHtml(k)}"</span>`
+        : `<span class="j-key">"${escHtml(k)}"</span>`;
+      const valHtml = isDanger && typeof obj[k]==='string'
+        ? `<span class="j-danger">"${escHtml(obj[k])}"</span>`
+        : colorizeJSON(obj[k], dangerKeys, indent+1);
+      return `${pad1}${keyHtml}: ${valHtml}`;
+    });
+    return `{\n${items.join(',\n')}\n${pad}}`;
+  }
+  return escHtml(String(obj));
+}
+</script>
+</body>
+</html>
